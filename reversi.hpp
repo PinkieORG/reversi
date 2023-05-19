@@ -124,6 +124,3 @@ public:
 
     int result() const;
 };
-
-
-reviewed by: RNDr. Henrich Lauko on 2021-04-12 11:44 CEST
