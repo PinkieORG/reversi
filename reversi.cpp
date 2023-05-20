@@ -1,127 +1,100 @@
 #include "reversi.hpp"
+#include <iostream>
+#include <functional>
 
-coordinate::coordinate(int x, int y, int z)
-            : _x(x), _y(y), _z(z) {}
-
-int coordinate::x() const { return _x; }
-
-int coordinate::y() const { return _y; }
-
-int coordinate::z() const { return _z; }
-
-coordinate coordinate::operator + (coordinate other) {
-    return coordinate(_x + other.x(), _y + other.y(), _z + other.z());
+coordinate operator+(coordinate first, coordinate second) {
+    coordinate result(first.size());
+    for (int i = 0; i < first.size(); ++i) {
+        result[i] = first[i] + second[i];
+    }
+    return result;
 }
 
-bool coordinate::operator < (int other) {
-    return (_x < other && _y < other && _z < other);
+colour& opponent (colour& col) {
+    return col = col == black ? white : black;
 }
 
-bool coordinate::operator > (int other) {
-    return (_x > other && _y > other && _z > other);
-}
-
-std::vector<coordinate> coordinate::neighbours() {
-    std::vector<coordinate> output;
+std::vector<coordinate> directions() {
+    std::vector<coordinate> directions;
     for (int i = -1; i <= 1; ++i) {
         for (int j = -1; j <= 1; ++j) {
             for (int k = -1; k <= 1; ++k) {
-                output.emplace_back(i, j, k);
+                directions.emplace_back(std::vector<int>{i, j, k});
             }
         }
     }
-    return output;
-}
-
-square::square() = default;
-
-square::square(enum colour colour)
-            :   _colour(colour) {}
-
-enum colour square::colour() const { return _colour; }
-
-void square::setColour(enum colour colour) { _colour = colour; }
-
-void square::flip() {
-
-    _colour == white ? _colour = black : _colour = white;
+    return directions;
 }
 
 board::board(unsigned size)
         :   _size(size) {
 
-    std::vector<std::vector<std::vector<square>>> board(_size, std::vector<std::vector<square>>(_size, std::vector<square>(_size)));
-    _board = board;
+    _boardData = boardData(_size, std::vector<std::vector<colour>>(_size, std::vector<colour>(_size)));
 
-
-    getSquare(transform(1, 1, 1)).setColour(white);
-    getSquare(transform(1, 1, -1)).setColour(black);
-    getSquare(transform(1, -1, -1)).setColour(white);
-    getSquare(transform(1, -1, 1)).setColour(black);
-    getSquare(transform(-1, 1, 1)).setColour(black);
-    getSquare(transform(-1, 1, -1)).setColour(white);
-    getSquare(transform(-1, -1, -1)).setColour(black);
-    getSquare(transform(-1, -1, 1)).setColour(white);
+    for (int i = -1; i <= 1; i += 2) {
+        for (int j = -1; j <= 1; j += 2) {
+            for (int k = -1; k <= 1; k += 2) {
+                colour col = (i * j * k) == 1 ? white : black;
+                setColour(transform(i, j, k), col);
+            }
+        }
+    }
 }
 
-bool board::gameLoop(int x, int y, int z, colour player, colour opponent) {
-
-    auto newCoord = coordinate(transform(x, y, z));
-    if (!isOnBoard(newCoord) || getSquare(newCoord).colour() != none) {
-        return false;
-    }
+bool board::makeMove(const coordinate& coord, colour player) {
     bool valid = false;
 
-    std::vector<square *> toFlip;
+    if (!isOnBoard(coord) || getColour(coord) != none) {
+        return valid;
+    }
 
-    for(coordinate n: coordinate::neighbours()) {
-        coordinate lineCoord = newCoord + n;
-        if (!isOnBoard(lineCoord) || getSquare(lineCoord).colour() != opponent) {
+    for(const coordinate& dir: directions()) {
+        std::vector<std::reference_wrapper<coordinate>> toFlip;
+
+        coordinate lineCoord = coord + dir;
+        while (isOnBoard(lineCoord) && getColour(lineCoord) == opponent(player)) {
+            toFlip.emplace_back(lineCoord);
+            lineCoord = lineCoord + dir;
+        }
+
+        if (!isOnBoard(lineCoord)) {
             continue;
         }
 
-
-        toFlip.clear();
-
-        while (isOnBoard(lineCoord) && getSquare(lineCoord).colour() == opponent) {
-            toFlip.push_back(&getSquare(lineCoord));
-            lineCoord = lineCoord + n;
-        }
-
-
-        if (!isOnBoard(lineCoord) || getSquare(lineCoord).colour() != player) {
-            continue;
-        }
-        valid = true;
-        getSquare(newCoord).setColour(player);
-        for (square *s: toFlip) {
-            (*s).flip();
+        if (!toFlip.empty() && getColour(lineCoord) == player) {
+            valid = true;
+            for (coordinate& coo: toFlip) {
+                flip(coo);
+            }
         }
     }
     return valid;
 }
 
-coordinate board::transform(int x, int y, int z) {
+coordinate board::transform(int x, int y, int z) const {
+    int halfSize = (int)_size / 2;
 
-    (x < 0) ? x += _size / 2 : x += _size / 2 - 1;
-    (y < 0) ? y += _size / 2 : y += _size / 2 - 1;
-    (z < 0) ? z += _size / 2 : z += _size / 2 - 1;
-    return coordinate(x, y, z);
-}
-
-square& board::getSquare(coordinate coord) {
-    return _board[coord.x()][coord.y()][coord.z()];
+    x += (x < 0) ? halfSize : halfSize - 1;
+    y += (y < 0) ? halfSize : halfSize - 1;
+    z += (z < 0) ? halfSize : halfSize - 1;
+    return {x, y, z};
 }
 
 bool board::isOnBoard(coordinate coord) const {
-    return (coord < _size && coord > -1);
+    bool result = true;
+    for (size_t i = 0; i <= 2; ++i) {
+        if (coord[i] < 0 || coord[i] >= _size) {
+            result = false;
+        }
+    }
+    return result;
 }
 
 bool board::isFull() const {
-    for (const auto& x: _board) {
+    for (const auto& x: _boardData) {
         for (const auto& y: x) {
-            for (square s: y) {
-                if (s.colour() == none) {
+            for (colour col: y) {
+                if (col == none) {
                     return false;
                 }
             }
@@ -133,24 +106,37 @@ bool board::isFull() const {
 int board::countScore() const {
     int score = 0;
 
-    for (const auto& x: _board) {
+    for (const auto& x: _boardData) {
         for (const auto& y: x) {
-            for (square s: y) {
-                s.colour() == white ? ++score : --score;
+            for (colour col: y) {
+                col == white ? ++score : --score;
             }
         }
     }
     return score;
 }
 
+colour board::getColour(coordinate coord) {
+    return _boardData[coord[0]][coord[1]][coord[2]];
+}
+
+void board::flip(const coordinate& coord) {
+    colour oldCol = getColour(coord);
+    colour newCol = oldCol == black ? white : black;
+    setColour(coord, newCol);
+}
+
+void board::setColour(coordinate coord, colour col) {
+    _boardData[coord[0]][coord[1]][coord[2]] = col;
+}
+
 reversi::reversi(int size)
         :   _board(board(size)),
-            _player(white),
-            _opponent(black)
+            _currentPlayer(white)
     {}
 
 void reversi::swapPlayers() {
-    std::swap(_player, _opponent);
+    _currentPlayer = opponent(_currentPlayer);
 }
 
 bool reversi::play(int x, int y, int z) {
@@ -158,7 +144,10 @@ bool reversi::play(int x, int y, int z) {
         swapPlayers();
         return true;
     }
-    bool valid = _board.gameLoop(x, y, z, _player, _opponent);
+
+    coordinate coord = _board.transform(x, y, z);
+
+    bool valid = _board.makeMove(coord, _currentPlayer);
     if (valid) {
         swapPlayers();
     }
@@ -169,7 +158,3 @@ bool reversi::finished() const { return _board.isFull(); }
 
 int reversi::result() const { return _board.countScore(); }
 
-int main() {
-
-}
- 

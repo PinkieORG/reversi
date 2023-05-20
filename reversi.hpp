@@ -1,6 +1,6 @@
-
 #pragma once
 #include <vector>
+#include <tuple>
 
 /* The subject of this task is the game of reversi (also known as
  * othello), played by two players on a 3D board (cube) of a given
@@ -31,59 +31,30 @@
  * The white player starts. The game ends when no new stones can be
  * placed and the player with more stones wins. */
 
-enum colour {white, black, none};
+enum colour {none, white, black};
+using coordinate = std::vector<int>;
+using boardData = std::vector<std::vector<std::vector<colour>>>;
 
-class coordinate {
-    int _x;
-    int _y;
-    int _z;
-public:
-    coordinate(int x, int y, int z);
-
-    int x() const;
-
-    int y() const;
-
-    int z() const;
-
-    coordinate operator + (coordinate other);
-
-    bool operator < (int other);
-
-    bool operator > (int other);
-
-    static std::vector<coordinate> neighbours();
-};
-
-class square {
-
-
-    enum colour _colour = none;
-public:
-    square();
-
-    explicit square(enum colour colour);
-
-    enum colour colour() const;
-
-    void setColour(enum colour colour);
-
-    void flip();
-};
+coordinate operator+ (coordinate first, coordinate second);
+colour& opponent (colour& colour);
+std::vector<coordinate> directions();
 
 class board{
-    std::vector<std::vector<std::vector<square>>> _board;
-
+    boardData _boardData;
     unsigned _size;
 public:
     explicit board(unsigned size);
 
-    bool gameLoop(int x, int y, int z, colour player, colour opponent);
+    // Transform the game coordinates to vector indexes.
+    coordinate transform(int, int, int) const;
 
+    colour getColour(coordinate);
 
-    coordinate transform(int x, int y, int z);
+    void setColour(coordinate, colour);
 
-    square& getSquare(coordinate coord);
+    bool makeMove(const coordinate& coord, colour player);
+
+    void flip(const coordinate& coord);
 
     bool isOnBoard(coordinate coord) const;
 
@@ -93,11 +64,8 @@ public:
 };
 
 class reversi {
+    colour _currentPlayer;
     board _board;
-
-    colour _player;
-    colour _opponent;
-
 public:
     explicit reversi(int size);
 
@@ -126,4 +94,3 @@ public:
 };
 
 
-reviewed by: RNDr. Henrich Lauko on 2021-04-12 11:44 CEST
